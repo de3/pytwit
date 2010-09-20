@@ -24,15 +24,17 @@ class TwParser(HTMLParser):
 
 class Auth:
 
-    def __init__(self):
-        self.consumer_key       = 'cons_key'
-        self.consumer_secret    = 'cons_secret'
+    def __init__(self, username, password):
+        self.consumer_key       = 'Ku59hdNBCxX58MC8oQpfbA'
+        self.consumer_secret    = 'OzWeLSE3iufvgxedkKEYg2QPvRRSe17AZUVI0V5jM'
 
         self.request_token_url  = 'http://twitter.com/oauth/request_token'
         self.access_token_url   = 'http://twitter.com/oauth/access_token'
         self.authorize_url      = 'http://twitter.com/oauth/authorize'
         
         self.oauth_token        = ''
+        self.username	        = username
+        self.password	        = password
 
     def auth(self):
         consumer    = oauth.Consumer(self.consumer_key, self.consumer_secret)
@@ -44,8 +46,8 @@ class Auth:
 
         request_token = dict(urlparse.parse_qsl(content))
         
-        username = 'username'
-        password = 'password'
+        username = self.username
+        password = self.password
 
         resp, content = client.request(self.authorize_url, "POST", body="session[username_or_email]=%s&session[password]=%s&oauth_token=%s" % (username, password, request_token['oauth_token']))
         if resp['status'] != '200':
@@ -81,8 +83,8 @@ class Auth:
             self.auth()
 
 class PyTwit:
-    def __init__(self):
-        auth        = Auth()
+    def __init__(self, username, password):
+        auth        = Auth(username, password)
         auth.token()
         token  = auth.oauth_token
         self.api    = twitter.Api(username=auth.consumer_key, password=auth.consumer_secret, access_token_key=token['oauth_token'], access_token_secret=token['oauth_token_secret'])
