@@ -32,6 +32,7 @@ class Auth:
             raise Exception("invalid response %s." % resp['status'])
 
         request_token = dict(urlparse.parse_qsl(content))
+        # If you use python <2.6 so, u want to change this code with cgi.parse_qsl
         
         username = self.username
         password = self.password
@@ -49,15 +50,17 @@ class Auth:
 
             resp, content   = client.request(self.access_token_url, 'POST', body='oauth_verifier=%s' % oauth_verifier)
             access_token    = dict(urlparse.parse_qsl(content))
-            
+            # If you use python <2.6, u want to change this code with cgi.parse_qsl
+
             # Write Config
             conf = os.environ["HOME"]+os.sep+'.pytwitrc'
             config = ConfigParser.RawConfigParser()
             config.add_section(username)
             config.set(username, 'oauth_token', access_token['oauth_token'])
             config.set(username, 'oauth_token_secret', access_token['oauth_token_secret'])
-            with open(conf, 'a+b') as configfile:
-                config.write(configfile)
+            configfile = open(conf, 'a+b')
+            config.write(configfile)
+            configfile.close()
 
             self.checktoken()
 
