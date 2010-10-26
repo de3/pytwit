@@ -3,28 +3,15 @@
 import os
 import ConfigParser
 import urlparse
-from HTMLParser import HTMLParser
 import oauth2 as oauth
 import twitter
-
-class TwParser(HTMLParser):
-    pin = ''
-    temp = 0
-    def __init__(self, data):
-        HTMLParser.__init__(self)
-        self.feed(data)
-    def handle_starttag(self, tag, attrs):
-        if tag == 'div' and attrs[0][1] == 'oauth_pin':
-            self.temp = 1
-    def handle_data(self, data):
-        if self.temp:
-            self.pin = data
-            self.temp = 0
-        return self.pin
+import BeautifulSoup
+import getopt
+import sys
 
 class Auth:
 
-    def __init__(self, username, password):
+    def __init__(self, username, password=''):
         self.consumer_key       = 'Ku59hdNBCxX58MC8oQpfbA'
         self.consumer_secret    = 'OzWeLSE3iufvgxedkKEYg2QPvRRSe17AZUVI0V5jM'
 
@@ -32,7 +19,7 @@ class Auth:
         self.access_token_url   = 'http://twitter.com/oauth/access_token'
         self.authorize_url      = 'http://twitter.com/oauth/authorize'
         
-        self.oauth_token        = ''
+        self.oauth_token        = {}
         self.username	        = username
         self.password	        = password
 
@@ -48,55 +35,121 @@ class Auth:
         
         username = self.username
         password = self.password
-
-        resp, content = client.request(self.authorize_url, "POST", body="session[username_or_email]=%s&session[password]=%s&oauth_token=%s" % (username, password, request_token['oauth_token']))
-        if resp['status'] != '200':
-            raise Exception("invalid response %s to authorize." % resp['status'])
-        parse = TwParser(content)
-        oauth_verifier = parse.pin.strip()
-        #print oauth_verifier
-        token = oauth.Token(request_token['oauth_token'], request_token['oauth_token_secret'])
-        client = oauth.Client(consumer, token)
-
-        resp, content = client.request(self.access_token_url, 'POST', body='oauth_verifier=%s' % oauth_verifier)
-        access_token = dict(urlparse.parse_qsl(content))
-        #print access_token
-        conf = os.environ["HOME"]+os.sep+'.pytwitrc'
-
-        config = ConfigParser.RawConfigParser()
-        config.add_section('Profile')
-        config.set('Profile', 'oauth_token', access_token['oauth_token'])
-        config.set('Profile', 'oauth_token_secret', access_token['oauth_token_secret'])
-        with open(conf, 'wb') as configfile:
-            config.write(configfile)
-
-        self.token()
-
-    def token(self):
-        path    = os.environ["HOME"]+os.sep+'.pytwitrc'
-        if os.path.exists(path):
-            config  = ConfigParser.ConfigParser()
-            config.read(path)
         
-            self.oauth_token = {'oauth_token':config.get('Profile','oauth_token'), 'oauth_token_secret':config.get('Profile','oauth_token_secret')}
-        else:
-            self.auth()
+        try:
+            self.checktoken()
+        except:
+            resp, content = client.request(self.authorize_url, "POST", body="session[username_or_email]=%s&session[password]=%s&oauth_token=%s" % (username, password, request_token['oauth_token']))
+            if resp['status'] != '200':
+                raise Exception("invalid response %s to authorize." % resp['status'])
+
+            oauth_verifier  = BeautifulSoup.BeautifulSoup(content).find('div', attrs={'id':'oauth_pin'}).string.strip()
+            token           = oauth.Token(request_token['oauth_token'], request_token['oauth_token_secret'])
+            client          = oauth.Client(consumer, token)
+
+            resp, content   = client.request(self.access_token_url, 'POST', body='oauth_verifier=%s' % oauth_verifier)
+            access_token    = dict(urlparse.parse_qsl(content))
+            
+            # Write Config
+            conf = os.environ["HOME"]+os.sep+'.pytwitrc'
+            config = ConfigParser.RawConfigParser()
+            config.add_section(username)
+            config.set(username, 'oauth_token', access_token['oauth_token'])
+            config.set(username, 'oauth_token_secret', access_token['oauth_token_secret'])
+            with open(conf, 'a+b') as configfile:
+                config.write(configfile)
+
+            self.checktoken()
+
+    def checktoken(self):
+        conf = os.environ["HOME"]+os.sep+'.pytwitrc'
+        config = ConfigParser.RawConfigParser()
+        config.readfp(open(conf))
+        self.oauth_token['oauth_token']         = config.get(self.username, 'oauth_token')
+        self.oauth_token['oauth_token_secret']  = config.get(self.username, 'oauth_token_secret')
 
 class PyTwit:
     def __init__(self, username, password):
         auth        = Auth(username, password)
-        auth.token()
+        auth.auth()
         token  = auth.oauth_token
         self.api    = twitter.Api(username=auth.consumer_key, password=auth.consumer_secret, access_token_key=token['oauth_token'], access_token_secret=token['oauth_token_secret'])
-        #self.friends = ''
+        self.username = username
+        self.friends = []
+        self.timeline = []
 
-    def status(self, message):
+    def Status(self, message):
         status = self.api.PostUpdate(message)
         print 'Last status: %s' % status
 
-    def friends(self):
+    def Friends(self):
         friends = self.api.GetFriends()
-        self.friends = []
         for friend in friends:
             self.friends.append(friend.name)
+	
+    def Timeline(self):
+        timeline = self.api.GetFriendsTimeline(self.username)
+        return timeline
+    
+    def Search(self, term):
+        res = self.api.GetSearch(term)
+        return res
 
+def Usage():
+    print """
+    Example:
+        $ python pytwit.py -u your_username -p your_password -a status -s "your message"
+    
+    Available option:
+    -u                  : Twitter username
+    --username
+    
+    -p                  : Twitter password, you can give null value if your token already write in pytwitrc
+    --password            Example:
+                            $ python pytwit.py -u your_username -a timeline
+    
+    -a                  : What action you want do
+    --action              Available Action:
+                            status      : Post your status with option -s or --status
+                            timeline    : view your timeline
+                            friends     : View your friend lists
+                            search      : Search something
+    
+    -s                  : Message that you want to post to your timeline
+    --status
+    """
+    
+if __name__ == "__main__":
+    try:
+        opts, args = getopt.getopt(sys.argv[1:], "hu:p:a:s:",["help","username=","password=","action=","status="])
+    except getopt.GetoptError, err:
+        print str(err)
+        Usage()
+        sys.exit(2)
+    
+    username = None
+    password = None
+    action  = None
+    
+    for o,a in opts:
+        if o in ("-h", "--help"):
+            Usage()
+            sys.exit()
+        elif o in ("-u", "--username"):
+            username = a
+        elif o in ("-p", "--password"):
+            password = a
+        elif o in ("-a", "--action"):
+            action = a
+        elif o in ("-s", "--status"):
+            status = a
+    
+    a = PyTwit(username, password)
+    if action == "friends":
+        a.Friends()
+        print a.friends
+    elif action == "status":
+        a.Status(status)
+    elif action == "timeline":
+        a.Timeline()
+        print a.timeline 

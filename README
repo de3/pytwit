@@ -2,16 +2,6 @@
 
 pytwit dibuat untuk menjalankan twitter dengan menggunakan console/terminal. Fungsi-fungsi seperti update status, timeline, dan lain - lain sudah dirancang di twitter api dan pytwit menyederhanakannya agar langsung dapat dieksekusi menggunakan command line.
 
-# fungsi - fungsi
-- login (on-going, authentikasi menggunakan oauth2 dan  otomatis allow applikasijadi tidak perlu mengambil pin dari browser)
-
-- post status (done)
-
-- view list friends (hanya view name, nanti diberikan opsi mau atrribut apa yang di view)
-
-- delete status (ongoing)
-
-- view timeline (ongoing)
-
-- view user (ongoing)
+cara menggunakan:
+Gunakan opsi -h untuk melihat help
 
